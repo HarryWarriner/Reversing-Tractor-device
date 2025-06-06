@@ -73,6 +73,7 @@ print("\n🚀 Starting main loop. Monitoring for vehicle movement...")
 
 while True:
     try:
+        # We might have to change this depending on the orientation of our IMU.
         accel_x, _, _ = mpu.acceleration
         
         # 1. Determine immediate direction from this single reading
