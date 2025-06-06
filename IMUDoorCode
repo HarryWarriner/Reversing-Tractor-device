@@ -1,135 +1,109 @@
 import time
 import board
 import adafruit_mpu6050
-from gpiozero import Servo
+from gpiozero import Servo, Relay  
 from collections import deque
 
 # =================================================================
 # --- CONFIGURATION ---
 # =================================================================
 # MPU6050 Settings
-FORWARD_THRESHOLD_MS2 = 1.5   # m/s^2
-REVERSE_THRESHOLD_MS2 = -1.5  # m/s^2
+FORWARD_THRESHOLD_MS2 = 1.5
+REVERSE_THRESHOLD_MS2 = -1.5
 
 # Servo Settings
-SERVO_PIN = 17                
-DOOR_OPEN_ANGLE = 90          
-DOOR_CLOSED_ANGLE = 0         
+SERVO_PIN = 17
+DOOR_OPEN_ANGLE = 90
+DOOR_CLOSED_ANGLE = 0
+
+# Relay Pin for Camera Power
+CAMERA_POWER_PIN = 26  # GPIO pin connected to the relay's IN pin
 
 # Stability and Timer Settings
-# How many consecutive readings we need to confirm a direction change.
 DIRECTION_CONFIRMATION_COUNT = 5
-# How many seconds to wait before closing the door when stationary.
-STATIONARY_TIMEOUT_S = 30 
+STATIONARY_TIMEOUT_S = 30
 
 # =================================================================
-# --- INITIALIZATION ---
+# --- INITIALISATION ---
+# We can get rid of this whole section once we have tested it works. (other than the system initialising)
 # =================================================================
 # Setup I2C and MPU6050 Sensor
-try:
-    i2c = board.I2C()
-    mpu = adafruit_mpu6050.MPU6050(i2c)
-    print("✅ MPU6050 sensor setup complete.")
-except Exception as e:
-    print(f"❌ Failed to initialize MPU6050: {e}")
-    print("Please check I2C connections and configuration. Exiting.")
-    exit()
+i2c = board.I2C()
+mpu = adafruit_mpu6050.MPU6050(i2c)
+print("✅ MPU6050 sensor setup complete.")
 
 # Setup Servo
+servo = Servo(SERVO_PIN, min_pulse_width=0.5/1000, max_pulse_width=2.5/1000)
+print(f"✅ Servo on GPIO {SERVO_PIN} initialised.")
+
+# Setup Relay for Camera Power
 try:
-    servo = Servo(SERVO_PIN, min_pulse_width=0.5/1000, max_pulse_width=2.5/1000)
-    print(f"✅ Servo on GPIO {SERVO_PIN} initialized.")
+    # Most relay modules turn ON with a LOW signal, so active_high=False is common.
+    # If your relay clicks ON when the script starts, change this to True.
+    camera_power = Relay(CAMERA_POWER_PIN, active_high=False) 
+    print(f"✅ Camera power relay on GPIO {CAMERA_POWER_PIN} initialised.")
 except Exception as e:
-    print(f"❌ Failed to initialize servo: {e}")
-    print("Please check the GPIO pin number and connections. Exiting.")
+    print(f"❌ Failed to initialise relay: {e}. Exiting.")
     exit()
-    
-def initialize_door():
-    """Sets the door to the known 'closed' position at startup."""
-    print("⚙️  Initializing door to CLOSED position...")
+
+def initialise_system():
+    """Sets the door to closed and ensures camera is off at startup."""
+    print("⚙️  Initialising system...")
     servo.angle = DOOR_CLOSED_ANGLE
+    camera_power.off()  # <-- Ensure camera is off
+    print("✅ Door closed and camera powered OFF.")
     time.sleep(1)
-    print("✅ Door initialization complete.")
 
 # =================================================================
 # --- MAIN LOGIC ---
 # =================================================================
-
-# State can be "FORWARD", "REVERSING", or "STATIONARY".
-# This tracks the last confirmed state of the vehicle's motion.
-last_vehicle_state = "FORWARD" 
-
-# NEW: A variable to store the timestamp of when the vehicle stopped.
-# We set it to None when the vehicle is moving.
+last_vehicle_state = "FORWARD"
 stationary_start_time = None
-
-# Use a 'deque' for an efficient, fixed-size list to store recent readings
 recent_directions = deque(maxlen=DIRECTION_CONFIRMATION_COUNT)
 
-# Set the initial door position
-initialize_door()
+# Set the initial system state
+initialise_system()
 
 print("\n🚀 Starting main loop. Monitoring for vehicle movement...")
 
 while True:
     try:
-        # We might have to change this depending on the orientation of our IMU.
+        # (This includes the accel_x reading, immediate_direction, recent_directions buffer, etc.)
         accel_x, _, _ = mpu.acceleration
-        
-        # 1. Determine immediate direction from this single reading
         immediate_direction = "STATIONARY"
-        if accel_x > FORWARD_THRESHOLD_MS2:
-            immediate_direction = "FORWARD"
-        elif accel_x < REVERSE_THRESHOLD_MS2:
-            immediate_direction = "REVERSING"
-        
+        if accel_x > FORWARD_THRESHOLD_MS2: immediate_direction = "FORWARD"
+        elif accel_x < REVERSE_THRESHOLD_MS2: immediate_direction = "REVERSING"
         recent_directions.append(immediate_direction)
-        
-        # We only proceed if the stability buffer is full
-        if len(recent_directions) < DIRECTION_CONFIRMATION_COUNT:
-            continue
-
-        # 2. Confirm the direction only if all recent readings are the same
+        if len(recent_directions) < DIRECTION_CONFIRMATION_COUNT: continue
         confirmed_direction = recent_directions[0] if all(d == recent_directions[0] for d in recent_directions) else None
-        
-        if confirmed_direction is None:
-            # Readings are inconsistent (e.g., bumpy road), so do nothing.
-            continue
-            
-        # 3. State Change and Timer Logic
-        
-        # CASE A: The vehicle is moving (Forward or Reverse)
+        if confirmed_direction is None: continue
+
+        # State Change and Action Logic
         if confirmed_direction != "STATIONARY":
-            # If the state is new, act on it.
             if confirmed_direction != last_vehicle_state:
                 if confirmed_direction == "REVERSING":
-                    print("Vehicle is REVERSING. Opening door...")
+                    print("Vehicle is REVERSING. Opening door and turning ON camera...")
                     servo.angle = DOOR_OPEN_ANGLE
+                    camera_power.on()  # <-- Turn camera ON
                 elif confirmed_direction == "FORWARD":
-                    print("Vehicle is moving FORWARD. Closing door...")
+                    print("Vehicle is moving FORWARD. Closing door and turning OFF camera...")
                     servo.angle = DOOR_CLOSED_ANGLE
-                
+                    camera_power.off() # <-- Turn camera OFF
                 last_vehicle_state = confirmed_direction
-            
-            # Since the vehicle is moving, ensure the stationary timer is reset.
             if stationary_start_time is not None:
                 print("Vehicle is moving again, cancelling stationary timer.")
                 stationary_start_time = None
 
-        # CASE B: The vehicle is stationary
-        else:
-            # If we were just reversing and have now stopped, start the timer.
+        else: # Vehicle is stationary
             if last_vehicle_state == "REVERSING" and stationary_start_time is None:
-                print(f"Vehicle stopped. Starting {STATIONARY_TIMEOUT_S}s timer to close door...")
+                print(f"Vehicle stopped. Starting {STATIONARY_TIMEOUT_S}s timer...")
                 stationary_start_time = time.time()
             
-            # Check if the timer has expired.
             if stationary_start_time is not None and (time.time() - stationary_start_time > STATIONARY_TIMEOUT_S):
-                print(f"Stationary for {STATIONARY_TIMEOUT_S}s. Closing door...")
+                print(f"Stationary for {STATIONARY_TIMEOUT_S}s. Closing door and turning OFF camera...")
                 servo.angle = DOOR_CLOSED_ANGLE
-                
-                # IMPORTANT: Update state and reset timer to prevent this from running again.
-                last_vehicle_state = "FORWARD" # We consider the door closed, so we're in a 'forward' like state.
+                camera_power.off() # <-- Turn camera OFF
+                last_vehicle_state = "FORWARD"
                 stationary_start_time = None
 
         time.sleep(0.1)
@@ -138,8 +112,8 @@ while True:
         print(f"⚠️ Warning: Could not read from sensor: {e}. Retrying...")
         time.sleep(1)
     except KeyboardInterrupt:
-        print("\n⏹️ Program stopped by user. Closing door...")
+        print("\n⏹️ Program stopped by user. Ensuring door is closed and camera is off...")
         servo.angle = DOOR_CLOSED_ANGLE
+        camera_power.off() # <-- Important: Turn camera OFF on exit
         time.sleep(1)
-        servo.close()
         break
