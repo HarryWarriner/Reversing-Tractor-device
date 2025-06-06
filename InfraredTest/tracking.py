@@ -21,35 +21,37 @@ def main():
         # Grab the latest frame
         frame = picam2.capture_array()
 
-        # Convert to grayscale then blur
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+        # Convert to HSV color space
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # Apply fake infrared colormap
-        infrared_frame = cv2.applyColorMap(gray, cv2.COLORMAP_JET)
+        # Define HSV range for red (wraps around 0, so we use two ranges)
+        lower_red1 = (0, 120, 70)
+        upper_red1 = (10, 255, 255)
 
-        # Define red threshold in JET colormap range
-        lower_red = (0, 0, 150)   # B, G, R
-        upper_red = (50, 50, 255)
-        mask = cv2.inRange(infrared_frame, lower_red, upper_red)
+        lower_red2 = (170, 120, 70)
+        upper_red2 = (180, 255, 255)
 
-        # Find red contours
+        # Create masks for red
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+
+        # Find contours
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        red_boxes = []  # To store box coordinates
+        red_boxes = []
 
         for c in contours:
             if cv2.contourArea(c) > 300:
                 x, y, w, h = cv2.boundingRect(c)
                 red_boxes.append((x, y, w, h))
-                cv2.rectangle(infrared_frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Print all box coordinates (optional: add logging or send to another module)
         if red_boxes:
             print("Detected red boxes:", red_boxes)
 
-        # Show result
-        cv2.imshow("Fake Infrared - Red Boxed", infrared_frame)
+        # Show original frame with red boxes
+        cv2.imshow("Red Object Tracking", frame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
