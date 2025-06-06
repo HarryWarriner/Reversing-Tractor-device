@@ -12,7 +12,7 @@ $(target):$(obj)
 
 #output all .o files
 $(obj):./%.o:./%.cpp	
-	$(CC) -c $< -o $@
+	$(CC) -c -fPIC $< -o $@
 
 .PHONY:clean all
 clean:
