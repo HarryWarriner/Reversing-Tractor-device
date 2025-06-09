@@ -1,8 +1,9 @@
 import cv2
 import time
+import os
 from picamera2 import Picamera2
 from libcamera import Transform
-
+RFCOMM_DEVICE = "/dev/rfcomm0"
 def main():
     picam2 = Picamera2()
 
@@ -44,6 +45,7 @@ def main():
 
         if len(boxes) > 0:
             print("Detected people at:", boxes)
+            os.system(f'echo {x} | sudo tee {RFCOMM_DEVICE}')
 
         # Display the frame
         cv2.imshow("People Tracking", resized)
