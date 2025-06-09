@@ -1,141 +1,143 @@
-# Pairing the Devices
+# Bluetooth RFCOMM Serial Communication Between Raspberry Pi Zero and Pi 4
 
-Do on both RPiZero and RPi 4:
+## 🔧 Setup on Both Devices
 
-```
+Install required packages:
+```bash
 sudo apt update
 sudo apt install bluetooth pi-bluetooth bluez
-
 ```
 
-Enable Bluetooth Sevice:
-
-```
+Enable and start the Bluetooth service:
+```bash
 sudo systemctl enable bluetooth
 sudo systemctl start bluetooth
 ```
 
-Check if Bluetooth is running:
-
-```
+Check Bluetooth status:
+```bash
 bluetoothctl
 ```
 
-If needed type ``` exit ``` to leave
+> Type `exit` to leave `bluetoothctl` when done.
 
-## Pair the devices
+---
 
+## 🔗 Pair the Devices
 
-On the Pi4:
-
-```
+On **both** Pis, enter the Bluetooth shell:
+```bash
 bluetoothctl
 power on
 agent on
 default-agent
 scan on
-
-
 ```
 
-On the other Pi, do the same. When the devices appear note the MAC addresses.
-Still in ``` bluetoothctl ``` on each pi, pair and trust the other device:
+Once you see the MAC address of the other Pi, note it.
 
-```
+Still inside `bluetoothctl`, on **both devices**, run:
+```bash
 pair <MAC_ADDRESS_OF_OTHER_PI>
 trust <MAC_ADDRESS_OF_OTHER_PI>
 ```
 
-After succesfully pairing, exit with ``` exit ```
+Once pairing is successful:
+```bash
+exit
+```
 
-## Set Up a Serial Connection (RFCOMM)
+---
 
-<hr>
+## 🔌 Set Up a Serial Connection (RFCOMM)
 
-Server Pi (Listener / Reciever)
+### 🔄 Roles Explained
 
+**Server Pi** (Listener / Receiver)
 - Waits for connections
-- Listens on a known Bluetooth Channel
-- Doesnt initate communication.
+- Listens on a known Bluetooth channel
+- Does *not* initiate communication
 
-Client Pi (Initator / Sender)
+**Client Pi** (Initiator / Sender)
+- Starts the Bluetooth connection
+- Needs the MAC address of the server Pi
+- Sends messages or requests data
 
-- Initiates the Bluetooth connection to the server
-- Knows the MAC address of the server
-- Sends messages or requests data from the server
+---
 
-<hr>
+### 📡 On the Server Pi (e.g., Pi Zero)
 
-On the server Pi (PiZero):<br>
-Enable Serial Port profile:
-
+Enable the Serial Port Profile (SPP):
+```bash
+sudo sdptool add SP
 ```
-sudo sdptool add sp
-```
 
-Bind RFCOMM to a virtual serial device:
-
-```
+Start listening for an RFCOMM connection:
+```bash
 sudo rfcomm listen /dev/rfcomm0
 ```
 
-On the client Pi (Pi4):
-Connect to the server:
+---
 
-```
+### 📲 On the Client Pi (e.g., Pi 4)
+
+Connect to the server:
+```bash
 sudo rfcomm connect 0 <MAC_ADDRESS_OF_PI_ZERO>
 ```
 
-You should see:
-
+Expected output:
 ```
 Connected /dev/rfcomm0 to <MAC_ADDRESS_OF_PI_ZERO> on channel 1
 ```
 
-### To fully clear the RFCOMM Device (If necessary)
-Release any stuck connection:
-```
+---
+
+## 🧼 Reset RFCOMM if Things Break
+
+If you get errors like “Address already in use” or “Connection refused”, reset with:
+
+```bash
 sudo rfcomm release 0
-```
-Kill any existing rfcomm processes:
-```
 sudo pkill -f rfcomm
-```
-Remove the rfcomm device node (if it still exists):
-```
 sudo rm -f /dev/rfcomm0
 ```
 
-## Test Communication
-
-Open a new terminal and run: <br>
-
-On the server Pi (PiZero):
+Optionally restart Bluetooth:
+```bash
+sudo systemctl restart bluetooth
 ```
+
+---
+
+## 🧪 Test Communication
+
+### On the Server Pi:
+```bash
 cat /dev/rfcomm0
 ```
 This will wait for and display incoming messages.
 
-<br>
-On the Client Pi (Pi4):
-```
+### On the Client Pi:
+```bash
 echo "Hello from client!" | sudo tee /dev/rfcomm0
 ```
-This sends a test string across the Bluetooth serial link.
 
-### If the server see the string repeating:
+The message should appear on the server Pi.
 
-The client is sending repeatdley.
-Check the client for any loop or stuck ``` tee```
+---
 
-```
+## 🔁 If the Server Sees Repeating Messages
+
+The client may have a `tee` command stuck in a loop.
+
+Check running processes:
+```bash
 ps aux | grep rfcomm
 ps aux | grep tee
+```
 
-```
-If you see a ```tee /dev/rfcomm0``` running in the background, it may be stuck. <br>
-Kill it:
-```
+If you see an old `tee /dev/rfcomm0` process, kill it:
+```bash
 sudo pkill -f tee
-
 ```
