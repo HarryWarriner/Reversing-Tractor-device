@@ -137,5 +137,4 @@ If you see a ```tee /dev/rfcomm0``` running in the background, it may be stuck. 
 Kill it:
 ```
 sudo pkill -f tee
-
 ```
