@@ -5,6 +5,7 @@ LED_PIN_Right = 23
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(LED_PIN_Left,GPIO.OUT)
+GPIO.setup(LED_PIN_Right,GPIO.OUT)
 
 DEVICE = "/dev/rfcomm0"
 
@@ -20,9 +21,9 @@ try:
                 continue
             if value > 300:
                 print("Right")
-                GPIO.output(LED_PIN_Left, GPIO.HIGH)
+                GPIO.output(LED_PIN_Right, GPIO.HIGH)
                 time.sleep(2)
-                GPIO.output(LED_PIN_Left, GPIO.LOW)
+                GPIO.output(LED_PIN_Right, GPIO.LOW)
 
             if value < 200:
                 print("Left")
