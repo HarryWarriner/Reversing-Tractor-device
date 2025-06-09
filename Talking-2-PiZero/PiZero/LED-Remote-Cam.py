@@ -12,13 +12,19 @@ try:
     with open(DEVICE, "r") as serial:
         while True:
             line = serial.readline().strip()
-            if line > 300:
+
+            try:
+                value = int(line)
+            except ValueError:
+                print(f"Ignoring non-integer line: {line}")
+                continue
+            if value > 300:
                 print("Right")
                 GPIO.output(LED_PIN_Left, GPIO.HIGH)
                 time.sleep(2)
                 GPIO.output(LED_PIN_Left, GPIO.LOW)
 
-            if line < 200:
+            if value < 200:
                 print("Left")
                 GPIO.output(LED_PIN_Left, GPIO.HIGH)
                 time.sleep(2)
