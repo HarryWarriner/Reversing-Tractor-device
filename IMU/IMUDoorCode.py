@@ -1,21 +1,20 @@
 import time
-import smbus # Using the smbus library as in your working test script
+import smbus
 from gpiozero import Servo
 from collections import deque
 import subprocess
-
 
 # =================================================================
 # --- CONFIGURATION ---
 # =================================================================
 # MPU6050 Settings
-BUS_ID = 1 # I2C Bus ID (typically 1 for modern Raspberry Pis)
-MPU_ADDR = 0x68 # MPU6050 I2C address (can be 0x68 or 0x69)
+BUS_ID = 1
+MPU_ADDR = 0x68
 
 # These thresholds are in raw accelerometer "g counts" (LSB/g)
 # Adjust these based on real sensor output at rest and during movement.
-FORWARD_THRESHOLD_COUNTS = 2000 # Example: Adjust this based on your testing
-REVERSE_THRESHOLD_COUNTS = -2000 # Example: Adjust this based on your testing
+FORWARD_THRESHOLD_COUNTS = 2000
+REVERSE_THRESHOLD_COUNTS = -2000
 
 # Servo Settings
 SERVO_PIN = 17
@@ -23,8 +22,8 @@ DOOR_OPEN_ANGLE = 1.0
 DOOR_CLOSED_ANGLE = -1.0
 
 # Stability and Timer Settings
-DIRECTION_CONFIRMATION_COUNT = 5 # Number of consistent readings to confirm a direction change
-STATIONARY_TIMEOUT_S = 20 # Time in seconds after which the door closes if stationary
+DIRECTION_CONFIRMATION_COUNT = 5
+STATIONARY_TIMEOUT_S = 20
 
 # MPU6050 Register Addresses (from mpu6050_test.py)
 PWR_MGMT_1 = 0x6B
@@ -33,10 +32,10 @@ GYRO_XOUT_H = 0x43
 
 # Test
 CAMERA_TEST_FILE_PATH = "/home/harry/Reversing-Tractor-device/IMU/cameraRunCode.py" 
+
 # =================================================================
 # --- I2C/MPU6050 COMMUNICATION FUNCTIONS ---
 # =================================================================
-
 bus = smbus.SMBus(BUS_ID)
 
 def write_reg(reg, data):
@@ -47,7 +46,7 @@ def read_word(reg):
     high = bus.read_byte_data(MPU_ADDR, reg)
     low  = bus.read_byte_data(MPU_ADDR, reg + 1)
     value = (high << 8) | low
-    return value - 65536 if value > 32767 else value  # two’s-complement
+    return value - 65536 if value > 32767 else value
 
 def initialize_mpu6050_sensor():
         write_reg(PWR_MGMT_1, 0x00)
@@ -58,16 +57,16 @@ def initialize_mpu6050_sensor():
 # =================================================================
 # --- SERVO INITIALISATION ---
 # =================================================================
-# # Setup Servo
+# Setup Servo
 servo = Servo(SERVO_PIN, min_pulse_width=0.5/1000, max_pulse_width=2.5/1000)
 print(f"✅ Servo on GPIO {SERVO_PIN} initialised.")
 
 def initialise_system():
     """Sets the door to closed at startup."""
     print("⚙️  Initialising system...")
-    servo.value = DOOR_CLOSED_ANGLE # Ensures the door starts in the closed position
+    servo.value = DOOR_CLOSED_ANGLE
     print("✅ Door closed.")
-    time.sleep(1) # Small delay to allow the servo to reach position
+    time.sleep(1)
 
 # =================================================================
 # --- MAIN LOGIC ---
