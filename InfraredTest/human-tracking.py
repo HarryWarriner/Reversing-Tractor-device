@@ -31,21 +31,31 @@ def main():
         # Resize to improve performance
         resized = cv2.resize(frame, (640, 480))
 
+        gray = cv2.cvtColor(resized, cv2.COLOR_RGB2GRAY)
+
         # Detect people
         (boxes, weights) = hog.detectMultiScale(
-            resized,
-            winStride=(4, 4),
-            padding=(8, 8),
-            scale=1.05
+            gray,
+            winStride=(8, 8),
+            padding=(16, 16),
+            scale=1.03
         )
 
         # Draw detection boxes
-        for (x, y, w, h) in boxes:
-            cv2.rectangle(resized, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        for (box, weight) in zip(boxes, weights):
+            if weight > 0.6:
+                x, y, w, h = box
+                cv2.rectangle(resized, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                cv2.putText(resized, f'{weight:.2f}', (x, y - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        if len(boxes) > 0:
-            print("Detected people at:", boxes)
-            os.system(f'echo {x} | sudo tee {RFCOMM_DEVICE}')
+
+        for (box, weight) in zip(boxes, weights):
+            if weight > 0.6:
+                x, y, w, h = box
+                print(f"Detected person at x={x}, y={y}, confidence={weight:.2f}")
+                os.system(f'echo {x} | sudo tee {RFCOMM_DEVICE}')
+
 
         # Display the frame
         cv2.imshow("People Tracking", resized)
