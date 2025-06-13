@@ -85,7 +85,7 @@ Connect to the server:
 ```bash
 sudo rfcomm connect 0 <MAC_ADDRESS_OF_PI_ZERO>
 ```
-(B8:27:EB:09:1E:8E) For our project
+B8:27:EB:09:1E:8E For our project
 
 Expected output:
 ```
