@@ -1,3 +1,4 @@
+
 # Bluetooth RFCOMM Serial Communication Between Raspberry Pi Zero and Pi 4
 
 ## 🔧 Setup on Both Devices
@@ -77,6 +78,55 @@ Start listening for an RFCOMM connection:
 sudo rfcomm listen /dev/rfcomm0
 ```
 
+### ✅ Automatically Run Receiver Script on Boot (Pi Zero)
+
+1. **Create a script** `/home/pi/run_receiver.sh`:
+```bash
+#!/bin/bash
+
+# Bind to client MAC address (replace with your actual sender MAC)
+rfcomm release 0
+rfcomm bind 0 00:11:22:33:44:55 1
+
+sleep 2
+
+# Run the Python script
+python3 /home/pi/your_receiver_script.py
+```
+
+Make it executable:
+```bash
+chmod +x /home/pi/run_receiver.sh
+```
+
+2. **Create a systemd service** `/etc/systemd/system/receiver.service`:
+```ini
+[Unit]
+Description=Bluetooth RFCOMM Receiver and GPIO Handler
+After=multi-user.target bluetooth.service
+
+[Service]
+ExecStart=/home/pi/run_receiver.sh
+WorkingDirectory=/home/pi
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+3. **Enable and start it**:
+```bash
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl enable receiver.service
+sudo systemctl start receiver.service
+```
+
+This will bind `/dev/rfcomm0` and run your script automatically on startup.
+
 ---
 
 ### 📲 On the Client Pi (e.g., Pi 4)
@@ -85,7 +135,10 @@ Connect to the server:
 ```bash
 sudo rfcomm connect 0 <MAC_ADDRESS_OF_PI_ZERO>
 ```
-B8:27:EB:09:1E:8E For our project
+Example for your project:
+```bash
+sudo rfcomm connect 0 B8:27:EB:09:1E:8E
+```
 
 Expected output:
 ```
@@ -142,4 +195,3 @@ If you see an old `tee /dev/rfcomm0` process, kill it:
 ```bash
 sudo pkill -f tee
 ```
-
